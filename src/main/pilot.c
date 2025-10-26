@@ -1,69 +1,46 @@
-#include <windows.h>
+#include "ss.h"
 #include <stdio.h>
 #include <stdlib.h>
 
-extern volatile const char katana[];
-
-void TerminateByID(DWORD process_id);
-void TerminateByName(char *process_name);
-
-char *usage = "ss.exe <process-id>\n\
-                ss.exe -n <process-name>";
+#define MODPATH         "ntdll.dll"
+#define PROCEDURE       "NtTerminateProcess"
+#define EXITCODE        77
 
 int main(int argc, char *argv[])
 {
-        DWORD id;
+        HMODULE dll;
+        HANDLE file;
+        int process_id;
+        __ntterminateprocess call;
+        char *usage = "ss.exe <process-id>";
         
-        katana;
-        if (argc == 2) {
-                if ((id = atoi(argv[1])) == 0) {
-                        fprintf(stderr, "%s\n", usage);
-                        return EXIT_FAILURE;
-                }
-                TerminateByID(id);
-        } else if (argc == 3) {
-                if (strcmp(argv[1], "-n") == 0) {
-                        TerminateByName(argv[2]);
-                } else {
-                        fprintf(stderr, "%s\n", usage);
-                        return EXIT_FAILURE;
-                }
-        } else {
+        if (argc != 2) {
                 fprintf(stderr, "%s\n", usage);
                 return EXIT_FAILURE;
         }
+        if ((process_id = atoi(argv[1])) == 0) {
+                fprintf(stderr, "%s\n", usage);
+                return EXIT_FAILURE;
+        }
+        if ((dll = GetModuleHandle(MODPATH)) == NULL)
+                if ((dll = LoadLibrary(MODPATH)) == NULL) {
+                        fprintf(stderr, "%s\n", "Unable to load dll");
+                        return EXIT_FAILURE;
+                }
+        if ((call = (__ntterminateprocess) GetProcAddress(dll, PROCEDURE)) == NULL) {
+                fprintf(stderr, "%s\n", "Unable to get an address for the procedure");
+                return EXIT_FAILURE;
+        }
+        if ((file = OpenProcess(PROCESS_TERMINATE, FALSE, process_id)) == NULL) {
+                fprintf(stderr, "%s\n", "Unable to open target process");
+                return EXIT_FAILURE;
+        }
+        if (call(file, EXITCODE) != 0) {
+                fprintf(stderr, "%s\n", "Failed to terminate target process");
+                return EXIT_FAILURE;
+        }
+        printf("%s\n", "Successfully terminated target process");
+        CloseHandle(file);
+        FreeLibrary(dll);
         return EXIT_SUCCESS;
-}
-
-void TerminateByID(DWORD id)
-{
-        HANDLE process;
-        char process_name[120];
-        DWORD pnamesiz = sizeof(process_name);
-        
-        if ((process = OpenProcess(PROCESS_TERMINATE | PROCESS_QUERY_LIMITED_INFORMATION, FALSE, id)) == NULL) {
-                fprintf(stderr, "%s\n", "error opening process");
-                return;
-        }
-        if (!QueryFullProcessImageName(
-                                        process,
-                                        0,
-                                        process_name,
-                                        &pnamesiz
-        )) {
-                fprintf(stderr, "%s %d\n", "error parsing process image name", GetLastError());
-                return;
-        }
-        if (!TerminateProcess(process, 0)) {
-                fprintf(stderr, "Error terminating Process #%d:\n%s\n", id, process_name);
-                return;
-        }
-        CloseHandle(process);
-        printf("Successfully terminated Process #%d:\n%s\n", id, process_name);
-        return;
-}
-
-void TerminateByName(char *name)
-{
-        return;
 }

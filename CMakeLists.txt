@@ -5,7 +5,8 @@ project(samurai-sword
         LANGUAGES C)
 set(SRC ${PROJECT_SOURCE_DIR}/src/main)
 set(HDRS ${PROJECT_SOURCE_DIR}/src/include)
-add_executable(ss 
-                ${SRC}/pilot.c
-                ${SRC}/ii.c)
+if(${CMAKE_BUILD_TYPE}=DEBUG)
+        set(CMAKE_MSVC_DEBUG_INFORMATION_FORMAT ProgramDatabase)
+endif()
+add_executable(ss ${SRC}/pilot.c)
 target_include_directories(ss PRIVATE ${HDRS})
